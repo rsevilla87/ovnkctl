@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/rsevilla/ovnkctl/pkg/kube"
 	"github.com/rsevilla/ovnkctl/pkg/ovn"
 	"github.com/spf13/cobra"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -18,7 +20,7 @@ func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "trace",
 		Short: "Trace packet flow between pods or to external IPs",
-		Long:  "Wrapper around ovnkube-trace that resolves pod names and formats output.",
+		Long:  "Uses ovn-trace to simulate packet flow through the OVN logical network.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if srcPod == "" {
 				return fmt.Errorf("--src is required")
@@ -38,39 +40,63 @@ func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 			}
 			ovnClient := ovn.NewClient(kubeClient, topo)
 
-			srcNS, srcName := getNamespace(kubeFlags), srcPod
-
-			traceArgs := []string{
-				"ovnkube-trace",
-				"-src", srcName,
-				"-src-namespace", srcNS,
-				"-dst-port", port,
-				"-ovn-config-namespace", topo.Namespace,
+			srcNS := getNamespace(kubeFlags)
+			srcPodObj, err := kubeClient.Clientset.CoreV1().Pods(srcNS).Get(ctx, srcPod, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("getting source pod %s/%s: %w", srcNS, srcPod, err)
+			}
+			srcAnnotation := srcPodObj.Annotations["k8s.ovn.org/pod-networks"]
+			if srcAnnotation == "" {
+				return fmt.Errorf("source pod %s/%s has no OVN network annotation", srcNS, srcPod)
+			}
+			srcNet, err := ovn.ParsePodNetworkAnnotation(srcAnnotation)
+			if err != nil {
+				return err
 			}
 
 			if dstPod != "" {
-				dstNS, dstName := getNamespace(kubeFlags), dstPod
-				traceArgs = append(traceArgs, "-dst", dstName, "-dst-namespace", dstNS)
-			} else if dstIP != "" {
-				if net.ParseIP(dstIP) == nil {
-					return fmt.Errorf("invalid destination IP: %s", dstIP)
+				dstNS := getNamespace(kubeFlags)
+				dstPodObj, err := kubeClient.Clientset.CoreV1().Pods(dstNS).Get(ctx, dstPod, metav1.GetOptions{})
+				if err != nil {
+					return fmt.Errorf("getting destination pod %s/%s: %w", dstNS, dstPod, err)
 				}
-				traceArgs = append(traceArgs, "-dst-ip", dstIP)
+				dstAnnotation := dstPodObj.Annotations["k8s.ovn.org/pod-networks"]
+				if dstAnnotation == "" {
+					return fmt.Errorf("destination pod %s/%s has no OVN network annotation", dstNS, dstPod)
+				}
+				dstNet, err := ovn.ParsePodNetworkAnnotation(dstAnnotation)
+				if err != nil {
+					return err
+				}
+				dstIP = dstNet.IPAddress
+			} else if net.ParseIP(dstIP) == nil {
+				return fmt.Errorf("invalid destination IP: %s", dstIP)
 			}
 
-			if udp {
-				traceArgs = append(traceArgs, "-udp")
-			} else if tcp {
-				traceArgs = append(traceArgs, "-tcp")
-			}
-
-			pod := topo.NodePods[0]
-			result, err := ovnClient.ExecInNodePod(ctx, pod.NodeName, "ovnkube-controller", traceArgs)
+			gwMAC, err := ovn.IPToMAC(srcNet.GatewayIP)
 			if err != nil {
-				return fmt.Errorf("running ovnkube-trace: %w", err)
+				return fmt.Errorf("deriving gateway MAC: %w", err)
+			}
+
+			logicalPort := fmt.Sprintf("%s_%s", srcNS, srcPod)
+			datapath := srcPodObj.Spec.NodeName
+			proto := "tcp"
+			if udp {
+				proto = "udp"
+			}
+			microflow := fmt.Sprintf(
+				`inport=="%s" && eth.src==%s && eth.dst==%s && ip4.src==%s && ip4.dst==%s && ip.ttl==64 && %s.dst==%s`,
+				logicalPort, srcNet.MACAddress, gwMAC, srcNet.IPAddress, dstIP, proto, port,
+			)
+
+			traceCmd := []string{"ovn-trace", "--detailed", datapath, microflow}
+			result, err := ovnClient.ExecInNodePod(ctx, srcPodObj.Spec.NodeName, topo.NBDBContainer, traceCmd)
+			if err != nil {
+				return fmt.Errorf("running ovn-trace: %w", err)
 			}
 
 			fmt.Print(result)
+			fmt.Println(strings.Join(traceCmd, " "))
 			return nil
 		},
 	}

@@ -133,7 +133,7 @@ func newPodCmd(kubeFlags *genericclioptions.ConfigFlags, outputFormat *string) *
 				}
 			}
 
-			lbs, err := ovnClient.GetLoadBalancers(ctx)
+			lbs, err := ovnClient.GetAllLoadBalancers(ctx)
 			if err == nil {
 				for _, lb := range lbs {
 					for vip, backends := range lb.VIPs {
@@ -184,7 +184,7 @@ func newPodCmd(kubeFlags *genericclioptions.ConfigFlags, outputFormat *string) *
 			}
 
 			if len(r.LoadBalancers) > 0 {
-				fmt.Printf("\nLoad Balancer Memberships (%d):\n", len(r.LoadBalancers))
+				fmt.Printf("\nLoad Balancer VIPs (%d):\n", len(r.LoadBalancers))
 				var rows [][]string
 				for _, lb := range r.LoadBalancers {
 					backends := lb.Backends
@@ -368,7 +368,7 @@ func newServiceCmd(kubeFlags *genericclioptions.ConfigFlags, outputFormat *strin
 			}
 
 			svcKey := ns + "/" + name
-			lbs, err := ovnClient.GetLoadBalancers(ctx)
+			lbs, err := ovnClient.GetAllLoadBalancers(ctx)
 			if err == nil {
 				for _, lb := range lbs {
 					owner := extID(lb.ExternalIDs, "owner")
@@ -395,7 +395,7 @@ func newServiceCmd(kubeFlags *genericclioptions.ConfigFlags, outputFormat *strin
 			fmt.Printf("  Type:      %s\n", r.Type)
 
 			if len(r.LBs) > 0 {
-				fmt.Printf("\nOVN Load Balancers (%d):\n", len(r.LBs))
+				fmt.Printf("\nOVN Load Balancer VIPs (%d):\n", len(r.LBs))
 				p := output.NewPrinter("table", os.Stdout)
 				var rows [][]string
 				for _, lb := range r.LBs {

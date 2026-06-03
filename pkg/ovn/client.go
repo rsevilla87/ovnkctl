@@ -33,7 +33,7 @@ func (c *Client) NBCtl(ctx context.Context, args ...string) (string, error) {
 		return "", err
 	}
 	cmdArgs := append([]string{"ovn-nbctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, c.topology.NBDBContainer, cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, c.topology.NBDBContainer, cmdArgs)
 }
 
 func (c *Client) NBCtlOnNode(ctx context.Context, nodeName string, args ...string) (string, error) {
@@ -42,7 +42,7 @@ func (c *Client) NBCtlOnNode(ctx context.Context, nodeName string, args ...strin
 		return "", err
 	}
 	cmdArgs := append([]string{"ovn-nbctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, c.topology.NBDBContainer, cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, c.topology.NBDBContainer, cmdArgs)
 }
 
 func (c *Client) SBCtl(ctx context.Context, args ...string) (string, error) {
@@ -51,7 +51,7 @@ func (c *Client) SBCtl(ctx context.Context, args ...string) (string, error) {
 		return "", err
 	}
 	cmdArgs := append([]string{"ovn-sbctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, c.topology.SBDBContainer, cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, c.topology.SBDBContainer, cmdArgs)
 }
 
 func (c *Client) SBCtlOnNode(ctx context.Context, nodeName string, args ...string) (string, error) {
@@ -60,7 +60,7 @@ func (c *Client) SBCtlOnNode(ctx context.Context, nodeName string, args ...strin
 		return "", err
 	}
 	cmdArgs := append([]string{"ovn-sbctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, c.topology.SBDBContainer, cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, c.topology.SBDBContainer, cmdArgs)
 }
 
 func (c *Client) OVSCtl(ctx context.Context, nodeName string, args ...string) (string, error) {
@@ -69,7 +69,7 @@ func (c *Client) OVSCtl(ctx context.Context, nodeName string, args ...string) (s
 		return "", err
 	}
 	cmdArgs := append([]string{"ovs-vsctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, "ovnkube-controller", cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, "ovnkube-controller", cmdArgs)
 }
 
 func (c *Client) AppCtl(ctx context.Context, container string, args ...string) (string, error) {
@@ -78,7 +78,7 @@ func (c *Client) AppCtl(ctx context.Context, container string, args ...string) (
 		return "", err
 	}
 	cmdArgs := append([]string{"ovn-appctl"}, args...)
-	return c.execInPod(ctx, pod.Namespace, pod.Name, container, cmdArgs)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, container, cmdArgs)
 }
 
 func (c *Client) SetTargetNode(nodeName string) {
@@ -104,7 +104,7 @@ func (c *Client) ExecInNodePod(ctx context.Context, nodeName, container string, 
 	if err != nil {
 		return "", err
 	}
-	return c.execInPod(ctx, pod.Namespace, pod.Name, container, command)
+	return c.ExecInPod(ctx, pod.Namespace, pod.Name, container, command)
 }
 
 func (c *Client) findNodePod(nodeName string) (kube.OVNPod, error) {
@@ -116,7 +116,7 @@ func (c *Client) findNodePod(nodeName string) (kube.OVNPod, error) {
 	return kube.OVNPod{}, fmt.Errorf("no ovnkube-node pod found on node %s", nodeName)
 }
 
-func (c *Client) execInPod(ctx context.Context, namespace, podName, container string, command []string) (string, error) {
+func (c *Client) ExecInPod(ctx context.Context, namespace, podName, container string, command []string) (string, error) {
 	req := c.kubeClient.Clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
