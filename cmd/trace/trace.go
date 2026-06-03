@@ -15,7 +15,7 @@ import (
 
 func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	var srcPod, dstPod, dstIP, port string
-	var tcp, udp bool
+	var tcp, udp, dryRun bool
 
 	cmd := &cobra.Command{
 		Use:   "trace",
@@ -90,13 +90,15 @@ func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 			)
 
 			traceCmd := []string{"ovn-trace", datapath, microflow}
+			if dryRun {
+				fmt.Printf("Would execute command in node %s:\n%s\n", datapath, strings.Join(traceCmd, " "))
+				return nil
+			}
 			result, err := ovnClient.ExecInNodePod(ctx, srcPodObj.Spec.NodeName, topo.NBDBContainer, traceCmd)
 			if err != nil {
 				return fmt.Errorf("running ovn-trace: %w", err)
 			}
-
 			fmt.Print(result)
-			fmt.Printf("\nExecuted command:\n%s\n", strings.Join(traceCmd, " "))
 			return nil
 		},
 	}
@@ -107,6 +109,7 @@ func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 	cmd.Flags().StringVar(&port, "port", "80", "Destination port")
 	cmd.Flags().BoolVar(&tcp, "tcp", true, "Use TCP protocol")
 	cmd.Flags().BoolVar(&udp, "udp", false, "Use UDP protocol")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Do not execute the command, just show it")
 
 	return cmd
 }
