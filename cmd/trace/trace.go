@@ -89,14 +89,14 @@ func NewTraceCmd(kubeFlags *genericclioptions.ConfigFlags) *cobra.Command {
 				logicalPort, srcNet.MACAddress, gwMAC, srcNet.IPAddress, dstIP, proto, port,
 			)
 
-			traceCmd := []string{"ovn-trace", "--detailed", datapath, microflow}
+			traceCmd := []string{"ovn-trace", datapath, microflow}
 			result, err := ovnClient.ExecInNodePod(ctx, srcPodObj.Spec.NodeName, topo.NBDBContainer, traceCmd)
 			if err != nil {
 				return fmt.Errorf("running ovn-trace: %w", err)
 			}
 
 			fmt.Print(result)
-			fmt.Println(strings.Join(traceCmd, " "))
+			fmt.Printf("\nExecuted command:\n%s\n", strings.Join(traceCmd, " "))
 			return nil
 		},
 	}
